@@ -17,12 +17,21 @@ Some Features:
 - 🖼️ Edit Cover Image and Profile Image
 - 📷 Image Uploads using Cloudinary
 - 🔔 Send Notifications
+- 💾 Save/Unsave Posts
+- 🔁 Repost (Retweet) Posts
+- 📤 Share Posts
+- 🏷️ View Liked Posts, Saved Posts, and User's Own Posts in Profile
+- 👤 Follow/Unfollow Users
+- 🔎 User Search (Sidebar)
+- 🏠 For You & Following Feeds
+- 🕒 Loading Skeletons for Better UX
+- 🌑 Dark Theme UI (DaisyUI/Tailwind)
 - 🌐 Deployment
 - ⏳ And much more!
 
 ### Setup .env file
 
-```js
+```
 MONGO_URI=...
 PORT=...
 JWT_SECRET=...
@@ -30,16 +39,18 @@ NODE_ENV=...
 CLOUDINARY_CLOUD_NAME=...
 CLOUDINARY_API_KEY=...
 CLOUDINARY_API_SECRET=...
+ETHEREAL_USER=...
+ETHEREAL_PASS=...
 ```
 
-### Build the app
+### Running the application
 
 ```shell
-npm run build
-```
+npm install
 
-### Start the app
+###In frontend folder
+npm run dev
 
-```shell
-npm start
+###In backend folder
+npm run start
 ```
