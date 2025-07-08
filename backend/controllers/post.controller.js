@@ -183,9 +183,19 @@ export const getFollowingPosts = async (req, res) => {
 		const user = await User.findById(userId);
 		if (!user) return res.status(404).json({ error: "User not found" });
 
-		const following = user.following;
+		const following = user.following.map(f => f.toString());
+		console.log("User ID:", userId);
+		console.log("Following array:", following);
 
-		const feedPosts = await Post.find({ user: { $in: following } })
+		// Find posts by following, reposted by following, reposted by user, or by the user
+		const feedPosts = await Post.find({
+			$or: [
+				{ user: { $in: following } },
+				{ reposts: { $in: following } },
+				{ reposts: { $in: [userId] } },
+				{ user: userId }, // include user's own posts
+			],
+		})
 			.sort({ createdAt: -1 })
 			.populate({
 				path: "user",
@@ -194,9 +204,33 @@ export const getFollowingPosts = async (req, res) => {
 			.populate({
 				path: "comments.user",
 				select: "-password",
+			})
+			.populate({
+				path: "reposts",
+				select: "_id username fullName profileImg",
 			});
 
-		res.status(200).json(feedPosts);
+		console.log("Number of posts found:", feedPosts.length);
+
+		// Add reposter info to each post if it was reposted
+		const postsWithReposter = feedPosts.map(post => {
+			let reposter = null;
+			if (post.reposts && post.reposts.length > 0) {
+				// Find the first reposter who is the user or someone they follow
+				const reposterUser = post.reposts.find(ruser => ruser._id.toString() === userId.toString() || following.includes(ruser._id.toString()));
+				if (reposterUser) {
+					reposter = {
+						_id: reposterUser._id,
+						username: reposterUser.username,
+						fullName: reposterUser.fullName,
+						profileImg: reposterUser.profileImg
+					};
+				}
+			}
+			return { ...post.toObject(), reposter };
+		});
+
+		res.status(200).json(postsWithReposter);
 	} catch (error) {
 		console.log("Error in getFollowingPosts controller: ", error);
 		res.status(500).json({ error: "Internal server error" });
@@ -224,6 +258,80 @@ export const getUserPosts = async (req, res) => {
 		res.status(200).json(posts);
 	} catch (error) {
 		console.log("Error in getUserPosts controller: ", error);
+		res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const saveUnsavePost = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const postId = req.params.id;
+		const user = await User.findById(userId);
+		if (!user) return res.status(404).json({ error: "User not found" });
+
+		const alreadySaved = user.savedPosts.includes(postId);
+		let saved;
+		if (alreadySaved) {
+			user.savedPosts.pull(postId);
+			saved = false;
+		} else {
+			user.savedPosts.push(postId);
+			saved = true;
+		}
+		await user.save();
+		return res.status(200).json({ saved });
+	} catch (error) {
+		console.log("Error in saveUnsavePost controller: ", error);
+		return res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const getSavedPosts = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const user = await User.findById(userId).populate({
+			path: "savedPosts",
+			populate: {
+				path: "user comments.user",
+				select: "-password",
+			},
+		});
+		if (!user) return res.status(404).json({ error: "User not found" });
+		return res.status(200).json(user.savedPosts.reverse());
+	} catch (error) {
+		console.log("Error in getSavedPosts controller: ", error);
+		return res.status(500).json({ error: "Internal server error" });
+	}
+};
+
+export const repostPost = async (req, res) => {
+	try {
+		const userId = req.user._id;
+		const { id: postId } = req.params;
+
+		const post = await Post.findById(postId);
+		if (!post) {
+			return res.status(404).json({ error: "Post not found" });
+		}
+
+		const hasReposted = post.reposts.includes(userId);
+		console.log("Before repost:", post.reposts);
+		if (hasReposted) {
+			// Undo repost
+			await Post.updateOne({ _id: postId }, { $pull: { reposts: userId } });
+			const updatedReposts = post.reposts.filter((id) => id.toString() !== userId.toString());
+			console.log("After undo repost:", updatedReposts);
+			return res.status(200).json(updatedReposts);
+		} else {
+			post.reposts.push(userId);
+			await post.save();
+			console.log("After repost:", post.reposts);
+            // Log the full post object for debugging
+            console.log("Post after repost:", post);
+			return res.status(200).json(post.reposts);
+		}
+	} catch (error) {
+		console.log("Error in repostPost controller: ", error);
 		res.status(500).json({ error: "Internal server error" });
 	}
 };

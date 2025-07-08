@@ -57,6 +57,12 @@ const LoginPage = () => {
 
 	return (
 		<div className='max-w-screen-xl mx-auto flex h-screen'>
+			{/* Application name at the top */}
+			<div className='absolute top-6 left-1/2 -translate-x-1/2 z-10'>
+				<h2 className='text-5xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-600 drop-shadow-lg tracking-widest uppercase shadow-xl animate-pulse'>
+					Blue Sky
+				</h2>
+			</div>
 			<div className='flex-1 hidden lg:flex items-center  justify-center'>
 				<XSvg className='lg:w-2/3 fill-white' />
 			</div>
@@ -97,6 +103,13 @@ const LoginPage = () => {
 					<Link to='/signup'>
 						<button className='btn rounded-full btn-primary text-white btn-outline w-full'>Sign up</button>
 					</Link>
+					<button
+						type='button'
+						className='btn btn-link text-blue-400 hover:underline p-0 text-sm self-end'
+						onClick={() => (window.location.href = "/forgot-password")}
+					>
+						Forgot password?
+					</button>
 				</div>
 			</div>
 		</div>

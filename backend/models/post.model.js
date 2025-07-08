@@ -32,6 +32,12 @@ const postSchema = new mongoose.Schema(
 				},
 			},
 		],
+		reposts: [
+			{
+				type: mongoose.Schema.Types.ObjectId,
+				ref: "User",
+			},
+		],
 	},
 	{ timestamps: true }
 );

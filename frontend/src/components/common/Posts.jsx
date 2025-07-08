@@ -2,18 +2,23 @@ import Post from "./Post";
 import PostSkeleton from "../skeletons/PostSkeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { useQuery as useUserQuery } from "@tanstack/react-query";
 
 const Posts = ({ feedType, username, userId }) => {
+	const { data: authUser } = useUserQuery({ queryKey: ["authUser"] });
+
 	const getPostEndpoint = () => {
 		switch (feedType) {
 			case "forYou":
-				return "/api/posts/all";
+				return "/api/posts/following";
 			case "following":
 				return "/api/posts/following";
 			case "posts":
 				return `/api/posts/user/${username}`;
 			case "likes":
 				return `/api/posts/likes/${userId}`;
+			case "saved":
+				return `/api/posts/saved`;
 			default:
 				return "/api/posts/all";
 		}
@@ -48,6 +53,13 @@ const Posts = ({ feedType, username, userId }) => {
 		refetch();
 	}, [feedType, refetch, username]);
 
+	// Debug: Log posts data to check for reposts
+	useEffect(() => {
+		if (posts) {
+			console.log('Fetched posts:', posts);
+		}
+	}, [posts]);
+
 	return (
 		<>
 			{(isLoading || isRefetching) && (
@@ -63,7 +75,7 @@ const Posts = ({ feedType, username, userId }) => {
 			{!isLoading && !isRefetching && posts && (
 				<div>
 					{posts.map((post) => (
-						<Post key={post._id} post={post} />
+						<Post key={post._id} post={post} reposter={post.reposter} authUser={authUser} />
 					))}
 				</div>
 			)}

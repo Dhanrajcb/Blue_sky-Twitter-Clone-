@@ -1,9 +1,10 @@
 import { FaRegComment } from "react-icons/fa";
 import { BiRepost } from "react-icons/bi";
 import { FaRegHeart } from "react-icons/fa";
-import { FaRegBookmark } from "react-icons/fa6";
+import { FaRegBookmark, FaBookmark } from "react-icons/fa6";
+import { FaShare } from "react-icons/fa";
 import { FaTrash } from "react-icons/fa";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
@@ -11,14 +12,25 @@ import { toast } from "react-hot-toast";
 import LoadingSpinner from "./LoadingSpinner";
 import { formatPostDate } from "../../utils/date";
 
-const Post = ({ post }) => {
-	const [comment, setComment] = useState("");
-	const { data: authUser } = useQuery({ queryKey: ["authUser"] });
+const Post = ({ post, reposter, authUser }) => {
 	const queryClient = useQueryClient();
 	const postOwner = post.user;
-	const isLiked = post.likes.includes(authUser._id);
 
-	const isMyPost = authUser._id === post.user._id;
+	const isLiked = authUser ? post.likes.includes(authUser._id) : false;
+	const isMyPost = authUser ? authUser._id === post.user._id : false;
+	const [comment, setComment] = useState("");
+	const [isSaved, setIsSaved] = useState(false);
+	const [isSaving, setIsSaving] = useState(false);
+	const [isReposting, setIsReposting] = useState(false);
+	const [repostCount, setRepostCount] = useState(post.reposts ? post.reposts.length : 0);
+	const [hasReposted, setHasReposted] = useState(false);
+
+	useEffect(() => {
+		if (authUser) {
+			setIsSaved(post.savedBy?.includes(authUser._id));
+			setHasReposted(post.reposts ? post.reposts.includes(authUser._id) : false);
+		}
+	}, [authUser, post.savedBy, post.reposts]);
 
 	const formattedDate = formatPostDate(post.createdAt);
 
@@ -123,8 +135,65 @@ const Post = ({ post }) => {
 		likePost();
 	};
 
+	const handleSavePost = async () => {
+		if (isSaving) return;
+		setIsSaving(true);
+		try {
+			const res = await fetch(`/api/posts/save/${post._id}`, {
+				method: "POST",
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || "Something went wrong");
+			setIsSaved(data.saved);
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+			toast.success(data.saved ? "Post saved!" : "Post unsaved!");
+		} catch (error) {
+			toast.error(error.message);
+		} finally {
+			setIsSaving(false);
+		}
+	};
+
+	const handleRepost = async () => {
+		if (isReposting) return;
+		setIsReposting(true);
+		try {
+			const res = await fetch(`/api/posts/repost/${post._id}`, {
+				method: "POST",
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || "Something went wrong");
+			setRepostCount(data.length);
+			setHasReposted(data.includes(authUser._id));
+			toast.success(hasReposted ? "Repost removed!" : "Reposted!");
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+		} catch (error) {
+			toast.error(error.message);
+		} finally {
+			setIsReposting(false);
+		}
+	};
+
+	const handleSharePost = async () => {
+		const postUrl = `${window.location.origin}/post/${post._id}`;
+		try {
+			await navigator.clipboard.writeText(postUrl);
+			toast.success("Post link copied to clipboard!");
+		} catch {
+			toast.error("Failed to copy link");
+		}
+	};
+
 	return (
 		<>
+			{reposter && reposter._id !== postOwner._id && (
+				<div className="text-xs text-green-500 mb-1 flex items-center gap-1">
+					{reposter.profileImg && (
+						<img src={reposter.profileImg} alt="reposter" className="w-5 h-5 rounded-full inline-block" />
+					)}
+					Reposted by {reposter._id === authUser?._id ? "You" : <span className="font-bold">@{reposter.username}</span>}
+				</div>
+			)}
 			<div className='flex gap-2 items-start p-4 border-b border-gray-700'>
 				<div className='avatar'>
 					<Link to={`/profile/${postOwner.username}`} className='w-8 rounded-full overflow-hidden'>
@@ -222,9 +291,13 @@ const Post = ({ post }) => {
 									<button className='outline-none'>close</button>
 								</form>
 							</dialog>
-							<div className='flex gap-1 items-center group cursor-pointer'>
-								<BiRepost className='w-6 h-6  text-slate-500 group-hover:text-green-500' />
-								<span className='text-sm text-slate-500 group-hover:text-green-500'>0</span>
+							<div className='flex gap-1 items-center group cursor-pointer' onClick={handleRepost}>
+								{isReposting ? (
+									<LoadingSpinner size='sm' />
+								) : (
+									<BiRepost className={`w-6 h-6 text-slate-500 group-hover:text-green-500 ${hasReposted ? "text-green-500" : ""}`} />
+								)}
+								<span className={`text-sm group-hover:text-green-500 ${hasReposted ? "text-green-500" : "text-slate-500"}`}>{repostCount}</span>
 							</div>
 							<div className='flex gap-1 items-center group cursor-pointer' onClick={handleLikePost}>
 								{isLiking && <LoadingSpinner size='sm' />}
@@ -245,7 +318,16 @@ const Post = ({ post }) => {
 							</div>
 						</div>
 						<div className='flex w-1/3 justify-end gap-2 items-center'>
-							<FaRegBookmark className='w-4 h-4 text-slate-500 cursor-pointer' />
+							<button onClick={handleSharePost} title="Share post">
+								<FaShare className='w-4 h-4 text-slate-500 cursor-pointer' />
+							</button>
+							<button onClick={handleSavePost} title={isSaved ? "Unsave post" : "Save post"} disabled={isSaving}>
+								{isSaved ? (
+									<FaBookmark className='w-4 h-4 text-blue-500 cursor-pointer' />
+								) : (
+									<FaRegBookmark className='w-4 h-4 text-slate-500 cursor-pointer' />
+								)}
+							</button>
 						</div>
 					</div>
 				</div>
